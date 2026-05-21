@@ -1,14 +1,15 @@
 # APK générés
 artifacts/
 
-# Projet Android généré par Capacitor (à régénérer via Docker)
+# Sources Android générées par Capacitor
+# (exportées dans android-src/ via volume Docker — non versionnées)
 android/
+android-src/
 
 # Dépendances Node
 node_modules/
 
 # public/config.js est COMMITÉ (config statique pour l'APK Android)
-# Ne pas l'ignorer ici — seul le service Nginx web le génère dynamiquement
 
 # Logs
 *.log

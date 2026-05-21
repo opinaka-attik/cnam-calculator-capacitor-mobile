@@ -1,11 +1,16 @@
 # ==============================================================
 # Dockerfile.android — Build APK Android entièrement dans Docker
 # Aucune installation locale requise (sauf Docker)
+#
+# STAGES :
+#   web-builder    → Node.js + Capacitor → génère android/
+#   android-builder → JDK 17 + Android SDK → compile l'APK
+#   output         → alpine léger → exporte APK + sources Android
 # ==============================================================
 
 # --------------------------------------------------------------
-# STAGE 1 : Initialisation Capacitor → génère android/
-# Image  : node:20-bookworm-slim
+# STAGE 1 : web-builder
+# Initialise Capacitor et génère le projet Android natif
 # --------------------------------------------------------------
 FROM node:20-bookworm-slim AS web-builder
 
@@ -23,13 +28,56 @@ RUN npm init -y && \
     npm install --save-dev \
         @capacitor/cli@^6
 
-# Génération du projet Android natif + synchronisation des assets web
+# Génération du projet Android natif + sync des assets web
 RUN npx cap add android && \
     npx cap sync android
 
 # --------------------------------------------------------------
-# STAGE 2 : Compilation Android avec le SDK et Gradle
-# Image  : eclipse-temurin:17-jdk-jammy (JDK 17 requis par AGP)
+# Conversion Java → Kotlin de MainActivity
+# Capacitor génère MainActivity.java par défaut.
+# On le remplace par une version Kotlin (.kt) équivalente.
+# --------------------------------------------------------------
+RUN PACKAGE_PATH="android/app/src/main/java/fr/cnam/calculator" && \
+    # Supprimer le fichier Java
+    rm -f ${PACKAGE_PATH}/MainActivity.java && \
+    # Créer le fichier Kotlin équivalent
+    cat > ${PACKAGE_PATH}/MainActivity.kt << 'EOF'
+package fr.cnam.calculator
+
+import com.getcapacitor.BridgeActivity
+
+/**
+ * MainActivity en Kotlin.
+ * Hérite de BridgeActivity (Capacitor) qui gère la WebView.
+ *
+ * Enrichissement possible ici :
+ *   - Enregistrer des plugins personnalisés : registerPlugin(MonPlugin::class.java)
+ *   - Accéder aux APIs Android natives (capteurs, Bluetooth, etc.)
+ *   - Configurer la fenêtre (plein écran, orientation, etc.)
+ */
+class MainActivity : BridgeActivity()
+EOF
+
+# Activer le support Kotlin dans build.gradle de l'app
+RUN sed -i \
+    's/apply plugin: .com.android.application./apply plugin: "com.android.application"
+apply plugin: "kotlin-android"/' \
+    android/app/build.gradle && \
+    # Ajouter la dépendance Kotlin stdlib
+    sed -i \
+    's/dependencies {/dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.0"/' \
+    android/app/build.gradle && \
+    # Ajouter le plugin Kotlin dans le build.gradle racine
+    sed -i \
+    's/classpath .com.android.tools.build:gradle/classpath "com.android.tools.build:gradle"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.0"
+        // classpath original:classpath "com.android.tools.build:gradle/' \
+    android/build.gradle || true
+
+# --------------------------------------------------------------
+# STAGE 2 : android-builder
+# Installe le SDK Android et compile l'APK avec Gradle
 # --------------------------------------------------------------
 FROM eclipse-temurin:17-jdk-jammy AS android-builder
 
@@ -37,7 +85,7 @@ ENV ANDROID_SDK_ROOT=/opt/android-sdk
 ENV ANDROID_HOME=/opt/android-sdk
 ENV PATH="${PATH}:${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platform-tools:${ANDROID_SDK_ROOT}/build-tools/34.0.0"
 
-# Dépendances système minimales
+# Dépendances système
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget unzip \
     && rm -rf /var/lib/apt/lists/*
@@ -58,7 +106,7 @@ RUN yes | sdkmanager --licenses > /dev/null 2>&1 || true && \
         "platforms;android-34" \
         "build-tools;34.0.0"
 
-# Copie du projet Android généré par Capacitor
+# Copie du projet Android généré (avec MainActivity.kt)
 COPY --from=web-builder /app/android /app/android
 COPY --from=web-builder /app/node_modules/@capacitor /app/node_modules/@capacitor
 
@@ -66,27 +114,40 @@ WORKDIR /app/android
 
 RUN chmod +x gradlew
 
-# Build du Debug APK
+# Compilation du Debug APK
 RUN ./gradlew assembleDebug \
         --no-daemon \
         --stacktrace
 
 # --------------------------------------------------------------
-# STAGE 3 : Image finale légère pour extraire l'APK
-# Image  : alpine:3.19
+# STAGE 3 : output
+# Image alpine légère — exporte l'APK ET les sources Android
 # --------------------------------------------------------------
 FROM alpine:3.19 AS output
 
-RUN mkdir -p /output
+RUN mkdir -p /output/apk /output/android-src
 
+# Copie de l'APK compilé
 COPY --from=android-builder \
     /app/android/app/build/outputs/apk/debug/app-debug.apk \
-    /output/cnam-calculator-debug.apk
+    /output/apk/cnam-calculator-debug.apk
 
-# Copie l'APK dans le volume monté /artifacts
+# Copie des sources Android générées (projet Gradle complet)
+COPY --from=android-builder /app/android /output/android-src
+
+# Script d'export :
+#   - Copie l'APK dans /artifacts/
+#   - Copie les sources Android dans /android-src/ (volume monté)
 CMD ["sh", "-c", \
-    "cp /output/cnam-calculator-debug.apk /artifacts/cnam-calculator-debug.apk && \
-     echo '=====================================' && \
-     echo ' APK généré avec succès !' && \
-     echo ' => /artifacts/cnam-calculator-debug.apk' && \
-     echo '====================================='"]
+    "echo '=== Export APK ===' && \
+     cp /output/apk/cnam-calculator-debug.apk /artifacts/cnam-calculator-debug.apk && \
+     echo '  APK => /artifacts/cnam-calculator-debug.apk' && \
+     echo '' && \
+     echo '=== Export sources Android (Kotlin) ===' && \
+     cp -r /output/android-src/. /android-src/ && \
+     echo '  Sources => /android-src/' && \
+     echo '  Fichier principal : /android-src/app/src/main/java/fr/cnam/calculator/MainActivity.kt' && \
+     echo '' && \
+     echo '====================================' && \
+     echo ' Build terminé avec succès !' && \
+     echo '===================================='"]
