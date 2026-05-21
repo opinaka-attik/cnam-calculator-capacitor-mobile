@@ -7,8 +7,8 @@ android/
 # Dépendances Node
 node_modules/
 
-# Config runtime (générée par entrypoint.sh)
-public/config.js
+# public/config.js est COMMITÉ (config statique pour l'APK Android)
+# Ne pas l'ignorer ici — seul le service Nginx web le génère dynamiquement
 
 # Logs
 *.log
