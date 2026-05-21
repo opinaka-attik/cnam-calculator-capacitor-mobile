@@ -8,20 +8,16 @@ Conversion de l'application web CNAM Calculator en **APK Android natif** via [Ca
 
 ```
 cnam-calculator-capacitor-mobile/
-├── public/                      # Sources web (HTML / CSS / JS)
-│   ├── index.html
-│   ├── script.js
-│   ├── style.css
-│   └── config.template.js
-├── capacitor.config.json        # Configuration Capacitor
-├── Dockerfile                   # Image Nginx (serveur web)
-├── Dockerfile.android           # Multi-stage : Capacitor + SDK Android → APK
-├── docker-compose.yml           # Service web
-├── docker-compose.android.yml   # Service de build Android
-├── build-android.sh             # Script helper
-├── nginx.conf
-├── entrypoint.sh
-└── artifacts/                   # APK généré (après build)
+├── public/                        # Sources web embarquées dans l'APK
+│   ├── index.html                 # Interface calculatrice
+│   ├── script.js                  # Logique + appel API backend
+│   ├── style.css                  # Styles
+│   └── config.js                  # URL du backend (ex: Render)
+├── capacitor.config.json          # Configuration Capacitor (appId, webDir)
+├── Dockerfile.android             # Pipeline multi-stage : Node → SDK Android → APK
+├── docker-compose.android.yml     # Orchestre le build + extraction APK
+├── build-android.sh               # Script helper (lance le build en 1 commande)
+└── artifacts/                     # APK généré (créé après le build)
     └── cnam-calculator-debug.apk
 ```
 
@@ -32,6 +28,16 @@ cnam-calculator-capacitor-mobile/
 | Docker | ≥ 24.x |
 | Docker Compose | ≥ 2.x |
 | Connexion internet | Requise au 1er build |
+
+## Configurer l'URL du backend
+
+Éditer `public/config.js` avec l'URL de votre API :
+
+```javascript
+window.APP_CONFIG = {
+    BACKEND_URL: "https://votre-api.onrender.com"
+};
+```
 
 ## Générer l'APK Android
 
@@ -61,13 +67,6 @@ adb install artifacts/cnam-calculator-debug.apk
 # Ou transférer le fichier .apk par câble USB / email / Drive
 ```
 
-## Lancer le serveur web (optionnel)
-
-```bash
-docker compose up -d
-# → http://localhost:8080
-```
-
 ## Comment ça marche — Pipeline multi-stage
 
 ```
@@ -88,12 +87,6 @@ Dockerfile.android
     └── COPY app-debug.apk → /output/
         CMD : cp /output/*.apk /artifacts/   (volume monté)
 ```
-
-## Variables d'environnement
-
-| Variable | Défaut | Usage |
-|----------|--------|-------|
-| `BACKEND_URL` | `http://localhost:8000` | URL de l'API backend |
 
 ## Build Release (APK signé)
 
