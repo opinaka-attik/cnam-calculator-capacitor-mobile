@@ -1,0 +1,22 @@
+# ================================================================
+# docker-compose.android.from-src.yml
+#
+# Compile l'APK a partir des sources Kotlin existantes (android-src/)
+# Prerequis : avoir execute ./build-android.sh au moins une fois
+#
+# Usage :
+#   ./build-android-from-src.sh
+# ================================================================
+version: '3.9'
+
+services:
+
+  android-from-src:
+    build:
+      context: .
+      dockerfile: Dockerfile.android.from-src
+      target: output
+    volumes:
+      # APK de sortie
+      - ./artifacts:/artifacts
+    restart: 'no'

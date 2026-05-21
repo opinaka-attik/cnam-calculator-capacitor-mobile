@@ -1,0 +1,99 @@
+# ==============================================================
+# Dockerfile.android.from-src
+# Compile l'APK Android a partir des sources Kotlin existantes
+# dans android-src/ (modifiees ou enrichies)
+#
+# Prerequis : avoir deja execute ./build-android.sh une fois
+#             (android-src/ doit exister)
+#
+# Usage :
+#   ./build-android-from-src.sh
+# ==============================================================
+
+# --------------------------------------------------------------
+# STAGE 1 : sync-web
+# Resynchronise uniquement les assets web (public/) dans
+# le projet Android existant — sans toucher au code Kotlin
+# --------------------------------------------------------------
+FROM node:20-bookworm-slim AS sync-web
+
+WORKDIR /app
+
+# Copie des sources web et config Capacitor
+COPY public/ ./public/
+COPY capacitor.config.json .
+
+# Installation de Capacitor (CLI uniquement)
+RUN npm init -y && \
+    npm install --save \
+        @capacitor/core@^6 \
+        @capacitor/android@^6 && \
+    npm install --save-dev \
+        @capacitor/cli@^6
+
+# Copie des sources Android existantes (avec vos modifications Kotlin)
+COPY android-src/ ./android/
+
+# Synchronise uniquement les assets web dans android/app/src/main/assets/public/
+# Ne touche PAS au code Java/Kotlin
+RUN npx cap sync android
+
+# --------------------------------------------------------------
+# STAGE 2 : android-builder
+# Installe le SDK Android et compile l'APK avec Gradle
+# --------------------------------------------------------------
+FROM eclipse-temurin:17-jdk-jammy AS android-builder
+
+ENV ANDROID_SDK_ROOT=/opt/android-sdk
+ENV ANDROID_HOME=/opt/android-sdk
+ENV PATH="${PATH}:${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platform-tools:${ANDROID_SDK_ROOT}/build-tools/34.0.0"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Telechargement des Android Command-line Tools
+RUN mkdir -p ${ANDROID_SDK_ROOT}/cmdline-tools && \
+    wget -q \
+        https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip \
+        -O /tmp/cmdtools.zip && \
+    unzip -q /tmp/cmdtools.zip -d /tmp/cmdtools && \
+    mv /tmp/cmdtools/cmdline-tools ${ANDROID_SDK_ROOT}/cmdline-tools/latest && \
+    rm -rf /tmp/cmdtools.zip /tmp/cmdtools
+
+# Acceptation des licences + installation des composants SDK
+RUN yes | sdkmanager --licenses > /dev/null 2>&1 || true && \
+    sdkmanager \
+        "platform-tools" \
+        "platforms;android-34" \
+        "build-tools;34.0.0"
+
+# Copie du projet Android (sources Kotlin + assets web synchronises)
+COPY --from=sync-web /app/android /app/android
+COPY --from=sync-web /app/node_modules/@capacitor /app/node_modules/@capacitor
+
+WORKDIR /app/android
+
+RUN chmod +x gradlew
+
+# Compilation du Debug APK
+RUN ./gradlew assembleDebug \
+        --no-daemon \
+        --stacktrace
+
+# --------------------------------------------------------------
+# STAGE 3 : output
+# Extrait l'APK final dans le volume /artifacts
+# --------------------------------------------------------------
+FROM alpine:3.19 AS output
+
+RUN mkdir -p /output
+
+COPY --from=android-builder \
+    /app/android/app/build/outputs/apk/debug/app-debug.apk \
+    /output/cnam-calculator-debug.apk
+
+CMD ["sh", "-c", \
+    "cp /output/cnam-calculator-debug.apk /artifacts/cnam-calculator-debug.apk && \
+     echo '==== APK compile depuis vos sources Kotlin ====' && \
+     echo '  => /artifacts/cnam-calculator-debug.apk'"]
