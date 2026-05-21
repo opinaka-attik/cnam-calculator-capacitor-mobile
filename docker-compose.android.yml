@@ -1,0 +1,39 @@
+# ================================================================
+# docker-compose.android.yml
+#
+# Usage :
+#   mkdir -p artifacts
+#   docker compose -f docker-compose.android.yml run --rm android-builder
+#
+# L'APK est déposé dans ./artifacts/cnam-calculator-debug.apk
+# ================================================================
+version: '3.9'
+
+services:
+
+  # ----------------------------------------------------------------
+  # Service de build Android
+  # Lance le stage "output" du Dockerfile.android multi-stage
+  # L'APK est extrait dans le volume local ./artifacts/
+  # ----------------------------------------------------------------
+  android-builder:
+    build:
+      context: .
+      dockerfile: Dockerfile.android
+      target: output
+    volumes:
+      - ./artifacts:/artifacts
+    restart: 'no'
+
+  # ----------------------------------------------------------------
+  # Service web (optionnel — pour tester le frontend en local)
+  # ----------------------------------------------------------------
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - '8080:80'
+    environment:
+      - BACKEND_URL=${BACKEND_URL:-http://localhost:8000}
+    restart: unless-stopped

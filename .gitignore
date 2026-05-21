@@ -1,0 +1,14 @@
+# APK générés
+artifacts/
+
+# Projet Android généré par Capacitor (à régénérer via Docker)
+android/
+
+# Dépendances Node
+node_modules/
+
+# Config runtime (générée par entrypoint.sh)
+public/config.js
+
+# Logs
+*.log

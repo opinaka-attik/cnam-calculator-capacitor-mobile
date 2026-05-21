@@ -1,0 +1,12 @@
+# Artefacts de build
+artifacts/
+android/
+node_modules/
+
+# Git
+.git/
+.gitignore
+
+# Logs
+*.log
+npm-debug.log*

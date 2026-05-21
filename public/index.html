@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Calculatrice connectée au backend</title>
+    <link rel="stylesheet" href="./style.css" />
+</head>
+
+<body>
+    <main class="app">
+        <section class="calculator" aria-label="Calculatrice connectée">
+            <header class="calculator__header">
+                <div>
+                    <p class="eyebrow">Frontend + Backend</p>
+                    <h1>Calculatrice</h1>
+                    <p class="subtitle">
+                        Le calcul est effectué par l'API backend.
+                    </p>
+                </div>
+            </header>
+
+            <div class="screen" aria-live="polite">
+                <div id="history" class="history">Aucune opération</div>
+                <input id="display" class="display" type="text" value="0" readonly />
+            </div>
+
+            <div class="keys">
+                <button class="btn btn--ghost" data-action="clear">C</button>
+                <button class="btn btn--ghost" data-action="delete">⌫</button>
+                <button class="btn btn--ghost" data-action="decimal">.</button>
+                <button class="btn btn--operator" data-action="operator" data-value="divide">÷</button>
+
+                <button class="btn" data-action="number" data-value="7">7</button>
+                <button class="btn" data-action="number" data-value="8">8</button>
+                <button class="btn" data-action="number" data-value="9">9</button>
+                <button class="btn btn--operator" data-action="operator" data-value="multiply">×</button>
+
+                <button class="btn" data-action="number" data-value="4">4</button>
+                <button class="btn" data-action="number" data-value="5">5</button>
+                <button class="btn" data-action="number" data-value="6">6</button>
+                <button class="btn btn--operator" data-action="operator" data-value="subtract">−</button>
+
+                <button class="btn" data-action="number" data-value="1">1</button>
+                <button class="btn" data-action="number" data-value="2">2</button>
+                <button class="btn" data-action="number" data-value="3">3</button>
+                <button class="btn btn--operator" data-action="operator" data-value="add">+</button>
+
+                <button class="btn btn--span-2" data-action="number" data-value="0">0</button>
+                <button class="btn" data-action="sign">±</button>
+                <button class="btn btn--equal" data-action="equal">=</button>
+            </div>
+
+            <section class="help">
+                <h2>Configuration</h2>
+                <ul>
+                    <li>L'URL du backend vient du fichier <code>config.js</code>.</li>
+                    <li>Le frontend envoie l'opération à l'API avec <code>fetch()</code>.</li>
+                    <li>Cette version exploite réellement le backend développé.</li>
+                </ul>
+            </section>
+        </section>
+    </main>
+
+    <script src="./config.js"></script>
+    <script src="./script.js"></script>
+</body>
+
+</html>
